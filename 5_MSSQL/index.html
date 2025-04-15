@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zarządzanie Produktami</title>
+    <!-- Dodajemy framework CSS (Tailwind via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto p-4">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-center text-blue-600">System Zarządzania Produktami</h1>
+            <p class="text-center text-gray-600">Interfejs do zarządzania produktami w bazie danych</p>
+        </header>
+
+        <!-- Przyciski akcji -->
+        <div class="flex justify-center gap-4 mb-8">
+            <button id="showAllBtn" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
+                Pokaż wszystkie produkty
+            </button>
+            <button id="showAddFormBtn" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded">
+                Dodaj nowy produkt
+            </button>
+        </div>
+
+        <!-- Formularz dodawania produktu -->
+        <div id="addProductForm" class="hidden mb-8 max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4 text-center">Dodaj nowy produkt</h2>
+            <form id="productForm" class="space-y-4">
+                <div>
+                    <label for="productName" class="block text-gray-700">Nazwa produktu:</label>
+                    <input type="text" id="productName" name="name" required
+                        class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="productInStock" name="inStock" class="mr-2">
+                    <label for="productInStock" class="text-gray-700">Dostępny na magazynie</label>
+                </div>
+                <button type="submit" class="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded">
+                    Zapisz produkt
+                </button>
+            </form>
+        </div>
+
+        <!-- Formularz edycji produktu -->
+        <div id="editProductForm" class="hidden mb-8 max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4 text-center">Edytuj produkt</h2>
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" id="editProductId">
+                <div>
+                    <label for="editProductName" class="block text-gray-700">Nazwa produktu:</label>
+                    <input type="text" id="editProductName" name="name" required
+                        class="w-full p-2 border border-gray-300 rounded mt-1">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="editProductInStock" name="inStock" class="mr-2">
+                    <label for="editProductInStock" class="text-gray-700">Dostępny na magazynie</label>
+                </div>
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
+                    Aktualizuj produkt
+                </button>
+                <button type="button" id="cancelEditBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                    Anuluj
+                </button>
+            </form>
+        </div>
+
+        <!-- Lista produktów -->
+        <div id="productsList" class="hidden max-w-4xl mx-auto">
+            <h2 class="text-xl font-semibold mb-4 text-center">Lista produktów</h2>
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nazwa</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Na stanie</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Tutaj będą wstawiane wiersze z produktami -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Powiadomienia -->
+        <div id="notification" class="hidden fixed bottom-4 right-4 p-4 rounded-lg shadow-lg">
+            <!-- Tutaj będą wyświetlane powiadomienia -->
+        </div>
+    </div>
+
+    <script>
+        // Podstawowa konfiguracja
+        const API_URL = 'https://localhost:5001/api/products'; // Zmień na adres swojego API
+
+        // Elementy DOM
+        const productsList = document.getElementById('productsList');
+        const productsTableBody = document.getElementById('productsTableBody');
+        const addProductForm = document.getElementById('addProductForm');
+        const editProductForm = document.getElementById('editProductForm');
+        const notification = document.getElementById('notification');
+
+        // Przyciski
+        document.getElementById('showAllBtn').addEventListener('click', fetchAndDisplayProducts);
+        document.getElementById('showAddFormBtn').addEventListener('click', () => {
+            toggleForm(addProductForm);
+            hideElement(editProductForm);
+        });
+        document.getElementById('cancelEditBtn').addEventListener('click', () => {
+            hideElement(editProductForm);
+        });
+
+        // Obsługa formularzy
+        document.getElementById('productForm').addEventListener('submit', addProduct);
+        document.getElementById('editForm').addEventListener('submit', updateProduct);
+
+        // Pobieranie i wyświetlanie wszystkich produktów
+        function fetchAndDisplayProducts() {
+            fetch(API_URL)
+                .then(response => response.json())
+                .then(products => {
+                    productsTableBody.innerHTML = '';
+
+                    if (products.length === 0) {
+                        showNotification('Brak produktów w bazie danych.', 'info');
+                    }
+
+                    products.forEach(product => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap">${product.id}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${product.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    ${product.inStock ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                    ${product.inStock ? 'Tak' : 'Nie'}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button class="text-blue-600 hover:text-blue-900 mr-2 edit-btn" data-id="${product.id}">
+                                    Edytuj
+                                </button>
+                                <button class="text-red-600 hover:text-red-900 delete-btn" data-id="${product.id}">
+                                    Usuń
+                                </button>
+                            </td>
+                        `;
+                        productsTableBody.appendChild(row);
+                    });
+
+                    // Dodanie event listenerów do przycisków edycji i usuwania
+                    document.querySelectorAll('.edit-btn').forEach(button => {
+                        button.addEventListener('click', () => editProductById(button.getAttribute('data-id')));
+                    });
+
+                    document.querySelectorAll('.delete-btn').forEach(button => {
+                        button.addEventListener('click', () => deleteProductById(button.getAttribute('data-id')));
+                    });
+
+                    showElement(productsList);
+                    hideElement(addProductForm);
+                    hideElement(editProductForm);
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania produktów:', error);
+                    showNotification('Wystąpił błąd podczas pobierania produktów.', 'error');
+                });
+        }
+
+        // Dodawanie nowego produktu
+        function addProduct(event) {
+            event.preventDefault();
+
+            const productName = document.getElementById('productName').value;
+            const productInStock = document.getElementById('productInStock').checked;
+
+            const newProduct = {
+                name: productName,
+                inStock: productInStock
+            };
+
+            fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newProduct)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Nie udało się dodać produktu.');
+                }
+                return response.json();
+            })
+            .then(product => {
+                showNotification(`Produkt "${product.name}" został dodany.`, 'success');
+                document.getElementById('productForm').reset();
+                fetchAndDisplayProducts();
+            })
+            .catch(error => {
+                console.error('Błąd podczas dodawania produktu:', error);
+                showNotification('Wystąpił błąd podczas dodawania produktu.', 'error');
+            });
+        }
+
+        // Pobieranie produktu do edycji
+        function editProductById(id) {
+            fetch(`${API_URL}/${id}`)
+                .then(response => response.json())
+                .then(product => {
+                    document.getElementById('editProductId').value = product.id;
+                    document.getElementById('editProductName').value = product.name;
+                    document.getElementById('editProductInStock').checked = product.inStock;
+
+                    showElement(editProductForm);
+                    hideElement(addProductForm);
+                    hideElement(productsList);
+                })
+                .catch(error => {
+                    console.error('Błąd podczas pobierania produktu do edycji:', error);
+                    showNotification('Wystąpił błąd podczas pobierania produktu.', 'error');
+                });
+        }
+
+        // Aktualizacja produktu
+        function updateProduct(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('editProductId').value;
+            const productName = document.getElementById('editProductName').value;
+            const productInStock = document.getElementById('editProductInStock').checked;
+
+            const updatedProduct = {
+                id: id,
+                name: productName,
+                inStock: productInStock
+            };
+
+            fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updatedProduct)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Nie udało się zaktualizować produktu.');
+                }
+
+                showNotification(`Produkt "${productName}" został zaktualizowany.`, 'success');
+                hideElement(editProductForm);
+                fetchAndDisplayProducts();
+            })
+            .catch(error => {
+                console.error('Błąd podczas aktualizacji produktu:', error);
+                showNotification('Wystąpił błąd podczas aktualizacji produktu.', 'error');
+            });
+        }
+
+        // Usuwanie produktu
+        function deleteProductById(id) {
+            if (confirm('Czy na pewno chcesz usunąć ten produkt?')) {
+                fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Nie udało się usunąć produktu.');
+                    }
+
+                    showNotification('Produkt został usunięty.', 'success');
+                    fetchAndDisplayProducts();
+                })
+                .catch(error => {
+                    console.error('Błąd podczas usuwania produktu:', error);
+                    showNotification('Wystąpił błąd podczas usuwania produktu.', 'error');
+                });
+            }
+        }
+
+        // Pomocnicze funkcje
+        function toggleForm(element) {
+            if (element.classList.contains('hidden')) {
+                showElement(element);
+            } else {
+                hideElement(element);
+            }
+        }
+
+        function showElement(element) {
+            element.classList.remove('hidden');
+        }
+
+        function hideElement(element) {
+            element.classList.add('hidden');
+        }
+
+        function showNotification(message, type) {
+            notification.textContent = message;
+            notification.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg`;
+
+            // Dodaj odpowiedni kolor w zależności od typu powiadomienia
+            if (type === 'success') {
+                notification.classList.add('bg-green-500', 'text-white');
+            } else if (type === 'error') {
+                notification.classList.add('bg-red-500', 'text-white');
+            } else {
+                notification.classList.add('bg-blue-500', 'text-white');
+            }
+
+            showElement(notification);
+
+            // Ukryj powiadomienie po 3 sekundach
+            setTimeout(() => {
+                hideElement(notification);
+            }, 3000);
+        }
+
+        // Inicjalne załadowanie produktów
+        fetchAndDisplayProducts();
+    </script>
+</body>
+</html>

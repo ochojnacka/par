@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script>
+        fetch("https://localhost:5001/api/products")
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("dane").innerHTML =
+                JSON.stringify(data);
+            })
+    </script>
+</head>
+<body>
+    <div id="dane"></div>
+</body>
+</html>
